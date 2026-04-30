@@ -60,6 +60,15 @@ def save_canvas(canvas):
     return filename
 
 
+def print_instructions():
+    print("=== TSIS2 Paint Controls ===")
+    print("Mouse: click a tool, click a color, drag on the canvas to draw.")
+    print("Tools: Pencil, Line, Rect, Circle, Square, Triangles, Rhombus, Eraser, Fill, Text.")
+    print("Keyboard: 1/2/3 - brush size, Ctrl+S - save image.")
+    print("Text tool: click canvas, type text, Enter - place text, Escape - cancel.")
+    print("============================")
+
+
 def main():
     pygame.init()
     pygame.font.init()
@@ -84,6 +93,8 @@ def main():
     text_value = ""
     status = ""
 
+    print_instructions()
+
     running = True
     while running:
         mouse_pos = pygame.mouse.get_pos()
@@ -92,21 +103,27 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+                print("Paint closed.")
 
             elif event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
                     brush_size = SIZES[int(event.unicode)]
+                    print(f"Brush size changed to {brush_size}px.")
                 elif event.key == pygame.K_s and (event.mod & pygame.KMOD_CTRL):
-                    status = f"Saved: {save_canvas(canvas).name}"
+                    saved_file = save_canvas(canvas)
+                    status = f"Saved: {saved_file.name}"
+                    print(f"Canvas saved to {saved_file}.")
                 elif text_mode:
                     if event.key == pygame.K_RETURN:
                         rendered = text_font.render(text_value, True, color)
                         canvas.blit(rendered, text_pos)
                         text_mode = False
+                        print(f"Text placed: {text_value}.")
                         text_value = ""
                     elif event.key == pygame.K_ESCAPE:
                         text_mode = False
                         text_value = ""
+                        print("Text input cancelled.")
                     elif event.key == pygame.K_BACKSPACE:
                         text_value = text_value[:-1]
                     elif event.unicode:
@@ -118,10 +135,12 @@ def main():
                     if button.rect.collidepoint(event.pos):
                         active_tool = button.name
                         clicked_toolbar = True
+                        print(f"Tool selected: {button.label}.")
                 for index, swatch in enumerate(PALETTE):
                     if pygame.Rect(12 + index * 34, 44, 24, 20).collidepoint(event.pos):
                         color = swatch
                         clicked_toolbar = True
+                        print(f"Color selected: RGB{color}.")
 
                 if clicked_toolbar:
                     continue
@@ -130,14 +149,17 @@ def main():
 
                 if active_tool == "fill":
                     flood_fill(canvas, canvas_mouse, color)
+                    print(f"Fill applied at {canvas_mouse} with RGB{color}.")
                 elif active_tool == "text":
                     text_mode = True
                     text_pos = canvas_mouse
                     text_value = ""
+                    print(f"Text input started at {text_pos}.")
                 else:
                     drawing = True
                     start_pos = canvas_mouse
                     last_pos = canvas_mouse
+                    print(f"Started {active_tool} at {start_pos}.")
 
             elif event.type == pygame.MOUSEMOTION and drawing:
                 if active_tool in {"pencil", "eraser"} and CANVAS_RECT.collidepoint(event.pos):
@@ -149,6 +171,9 @@ def main():
                 drawing = False
                 if active_tool not in {"pencil", "eraser"}:
                     draw_shape(canvas, active_tool, start_pos, canvas_mouse, color, brush_size)
+                    print(f"Drew {active_tool} from {start_pos} to {canvas_mouse}.")
+                else:
+                    print(f"Finished {active_tool} stroke at {canvas_mouse}.")
 
         screen.fill((222, 226, 232))
         screen.blit(canvas, CANVAS_RECT.topleft)
