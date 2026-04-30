@@ -11,6 +11,8 @@ from connect import BASE_DIR, get_connection, run_sql_file
 VALID_PHONE_TYPES = {"home", "work", "mobile"}
 PHONE_TYPE_OPTIONS = "home / work / mobile"
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.com$")
+PHONE_RE = re.compile(r"^\+?[0-9]{7,15}$")
+DATE_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
 
 def setup_database():
@@ -39,6 +41,22 @@ def normalize_email(value):
     return email
 
 
+def normalize_phone(value):
+    phone = (value or "").strip()
+    if not PHONE_RE.match(phone):
+        raise ValueError("Phone must be 7-15 digits, optional + at the start")
+    return phone
+
+
+def normalize_birthday(value):
+    birthday = (value or "").strip()
+    if not birthday:
+        return None
+    if not DATE_RE.match(birthday):
+        raise ValueError("Birthday must use YYYY-MM-DD format")
+    return birthday
+
+
 def ask_email(prompt="Email"):
     while True:
         try:
@@ -47,13 +65,38 @@ def ask_email(prompt="Email"):
             print(exc)
 
 
+def ask_phone(prompt="Phone"):
+    while True:
+        try:
+            return normalize_phone(ask(prompt))
+        except ValueError as exc:
+            print(exc)
+
+
+def ask_birthday(prompt="Birthday YYYY-MM-DD"):
+    while True:
+        try:
+            return normalize_birthday(ask(prompt, ""))
+        except ValueError as exc:
+            print(exc)
+
+
+def ask_phone_type(prompt=None):
+    prompt = prompt or f"Phone type ({PHONE_TYPE_OPTIONS})"
+    while True:
+        try:
+            return normalize_phone_type(ask(prompt, "mobile"))
+        except ValueError as exc:
+            print(exc)
+
+
 def add_contact_interactive():
     name = ask("Name")
-    phone = ask("Phone")
+    phone = ask_phone()
     email = ask_email()
-    birthday = ask("Birthday YYYY-MM-DD", None)
+    birthday = ask_birthday()
     group = ask("Group", "Other")
-    phone_type = normalize_phone_type(ask(f"Phone type ({PHONE_TYPE_OPTIONS})", "mobile"))
+    phone_type = ask_phone_type()
 
     with get_connection() as conn, conn.cursor() as cur:
         cur.execute(
@@ -69,7 +112,9 @@ def import_csv(path):
         with get_connection() as conn, conn.cursor() as cur:
             for row in reader:
                 try:
+                    phone = normalize_phone(row.get("phone"))
                     email = normalize_email(row.get("email"))
+                    birthday = normalize_birthday(row.get("birthday"))
                     phone_type = normalize_phone_type(row.get("phone_type") or row.get("type"))
                 except ValueError as exc:
                     print(f"Skipped {row.get('name', 'unknown')}: {exc}")
@@ -78,9 +123,9 @@ def import_csv(path):
                     "CALL upsert_contact(%s, %s, %s, %s, %s, %s)",
                     (
                         row["name"].strip(),
-                        row.get("phone") or None,
+                        phone,
                         email,
-                        row.get("birthday") or None,
+                        birthday,
                         row.get("group") or "Other",
                         phone_type,
                     ),
@@ -127,6 +172,9 @@ def import_json(path):
             first_phone = phones[0] if phones else {"phone": None, "type": "mobile"}
             try:
                 email = normalize_email(contact.get("email"))
+                birthday = normalize_birthday(contact.get("birthday"))
+                first_phone_number = normalize_phone(first_phone.get("phone"))
+                first_phone_type = normalize_phone_type(first_phone.get("type"))
             except ValueError as exc:
                 print(f"Skipped {name}: {exc}")
                 continue
@@ -134,18 +182,21 @@ def import_json(path):
                 "CALL upsert_contact(%s, %s, %s, %s, %s, %s)",
                 (
                     name,
-                    first_phone.get("phone"),
+                    first_phone_number,
                     email,
-                    contact.get("birthday"),
+                    birthday,
                     contact.get("group_name") or contact.get("group") or "Other",
-                    normalize_phone_type(first_phone.get("type")),
+                    first_phone_type,
                 ),
             )
             for phone in phones[1:]:
-                cur.execute(
-                    "CALL add_phone(%s, %s, %s)",
-                    (name, phone["phone"], normalize_phone_type(phone.get("type"))),
-                )
+                try:
+                    phone_number = normalize_phone(phone["phone"])
+                    phone_type = normalize_phone_type(phone.get("type"))
+                except ValueError as exc:
+                    print(f"Skipped extra phone for {name}: {exc}")
+                    continue
+                cur.execute("CALL add_phone(%s, %s, %s)", (name, phone_number, phone_type))
     print("JSON import finished.")
 
 
@@ -206,14 +257,21 @@ def update_contact():
     # Обновление из Practice 7 расширено новыми полями контакта.
     name = ask("Contact name to update")
     field = ask("Field (name / email / birthday / group / phone)", "phone")
-    value = ask_email("New email") if field == "email" else ask("New value")
+    if field == "email":
+        value = ask_email("New email")
+    elif field == "phone":
+        value = ask_phone("New phone")
+    elif field == "birthday":
+        value = ask_birthday("New birthday YYYY-MM-DD")
+    else:
+        value = ask("New value")
     with get_connection() as conn, conn.cursor() as cur:
         if field == "group":
             cur.execute("CALL move_to_group(%s, %s)", (name, value))
         elif field == "phone":
-            cur.execute("CALL add_phone(%s, %s, %s)", (name, value, normalize_phone_type(ask(f"Type ({PHONE_TYPE_OPTIONS})", "mobile"))))
+            cur.execute("CALL add_phone(%s, %s, %s)", (name, value, ask_phone_type()))
         elif field == "email":
-            cur.execute("UPDATE contacts SET email = %s WHERE name = %s", (normalize_email(value), name))
+            cur.execute("UPDATE contacts SET email = %s WHERE name = %s", (value, name))
         elif field in {"name", "birthday"}:
             cur.execute(f"UPDATE contacts SET {field} = %s WHERE name = %s", (value, name))
         else:
