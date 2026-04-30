@@ -12,11 +12,22 @@ ROAD = pygame.Rect(80, 0, 360, HEIGHT)
 LANES = [125, 205, 285, 365]
 FINISH_DISTANCE = 3000
 DIFFICULTY_SPEED = {"easy": 4, "normal": 5, "hard": 7}
+MENU_BUTTONS = [
+    ((180, 260, 160, 42), "Play", "game"),
+    ((180, 315, 160, 42), "Leaderboard", "leaderboard"),
+    ((180, 370, 160, 42), "Settings", "settings"),
+    ((180, 425, 160, 42), "Quit", "quit"),
+]
+SETTINGS_BUTTONS = [
+    ((300, 225, 160, 42), "Toggle Sound", "sound"),
+    ((300, 280, 160, 42), "Car Color", "color"),
+    ((300, 335, 160, 42), "Difficulty", "difficulty"),
+    ((180, 450, 160, 42), "Save & Back", "save"),
+]
 
 
 class Entity:
     def __init__(self, rect, color, kind, value=0, ttl=0):
-        # Entity stores the rectangle and object type: player, traffic, coin, etc.
         self.rect = rect
         self.color = color
         self.kind = kind
@@ -39,33 +50,23 @@ class RacerApp:
         self.username = ""
         self.state = "menu"
         self.reset_game()
-        self.print_instructions()
-
-    def print_instructions(self):
-        print("=== TSIS3 Racer Controls ===")
-        print("Menu: type your name, press Enter or click Play to start.")
-        print("Game: Left Arrow / Right Arrow - move the car.")
-        print("Settings: use mouse buttons to change sound, car color and difficulty.")
-        print("Goal: collect coins and power-ups, avoid traffic and obstacles.")
-        print("============================")
 
     def load_images(self):
-        # Sprites are optional. If a bitmap is missing, draw_entity uses rectangles.
-        return {
-            "player": load_image("player_car.bmp", (36, 58)),
-            "traffic": load_image("traffic_car.bmp", (36, 58)),
-            "coin": load_image("coin.bmp", (24, 24)),
-            "nitro": load_image("nitro.bmp", (28, 28)),
-            "shield": load_image("shield.bmp", (28, 28)),
-            "repair": load_image("repair.bmp", (28, 28)),
-            "barrier": load_image("barrier.bmp", (44, 28)),
-            "oil": load_image("oil.bmp", (44, 28)),
-            "bump": load_image("bump.bmp", (44, 28)),
-            "road": load_image("road.bmp", (ROAD.width, HEIGHT)),
+        files = {
+            "player": ("player_car.bmp", (36, 58)),
+            "traffic": ("traffic_car.bmp", (36, 58)),
+            "coin": ("coin.bmp", (24, 24)),
+            "nitro": ("nitro.bmp", (28, 28)),
+            "shield": ("shield.bmp", (28, 28)),
+            "repair": ("repair.bmp", (28, 28)),
+            "barrier": ("barrier.bmp", (44, 28)),
+            "oil": ("oil.bmp", (44, 28)),
+            "bump": ("bump.bmp", (44, 28)),
+            "road": ("road.bmp", (ROAD.width, HEIGHT)),
         }
+        return {name: load_image(file, size) for name, (file, size) in files.items()}
 
     def reset_game(self):
-        # Reset only gameplay state. Username and settings stay unchanged.
         color = tuple(self.settings.get("car_color", [40, 120, 220]))
         self.player = Entity(pygame.Rect(LANES[1] - 18, HEIGHT - 90, 36, 58), color, "player")
         self.traffic = []
@@ -102,68 +103,71 @@ class RacerApp:
             self.handle_menu(event)
         elif self.state == "settings":
             self.handle_settings(event)
-        elif self.state in {"leaderboard", "gameover"} and event.type == pygame.MOUSEBUTTONDOWN:
-            if Button((180, 640, 160, 42), "Back").clicked(event):
-                self.sound.play("menu", self.settings)
+        elif self.state in {"leaderboard", "gameover"} and self.clicked(event, (180, 640, 160, 42)):
+            self.open_screen("menu")
+        if self.state == "gameover" and self.clicked(event, (70, 580, 160, 42)):
+            self.start_game()
+
+    def clicked(self, event, rect):
+        return event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and pygame.Rect(rect).collidepoint(event.pos)
+
+    def start_game(self):
+        if not self.username:
+            return
+        self.sound.play("menu", self.settings)
+        self.reset_game()
+        self.state = "game"
+
+    def open_screen(self, state):
+        self.sound.play("menu", self.settings)
+        self.state = state
+
+    def menu_click(self, event):
+        for rect, _text, action in MENU_BUTTONS:
+            if not self.clicked(event, rect):
+                continue
+            if action == "game":
+                self.start_game()
+            elif action == "quit":
+                pygame.event.post(pygame.event.Event(pygame.QUIT))
+            else:
+                self.open_screen(action)
+            return
+
+    def settings_click(self, event):
+        colors = [[40, 120, 220], [200, 55, 60], [45, 160, 95]]
+        difficulties = ["easy", "normal", "hard"]
+        for rect, _text, action in SETTINGS_BUTTONS:
+            if not self.clicked(event, rect):
+                continue
+            self.sound.play("menu", self.settings)
+            if action == "sound":
+                self.settings["sound"] = not self.settings.get("sound", True)
+            elif action == "color":
+                current = colors.index(self.settings.get("car_color", colors[0])) if self.settings.get("car_color") in colors else 0
+                self.settings["car_color"] = colors[(current + 1) % len(colors)]
+            elif action == "difficulty":
+                current = difficulties.index(self.settings.get("difficulty", "normal"))
+                self.settings["difficulty"] = difficulties[(current + 1) % len(difficulties)]
+            elif action == "save":
+                save_settings(self.settings)
                 self.state = "menu"
-        if self.state == "gameover" and event.type == pygame.MOUSEBUTTONDOWN:
-            if Button((70, 580, 160, 42), "Retry").clicked(event):
-                self.sound.play("menu", self.settings)
-                self.reset_game()
-                self.state = "game"
+            return
 
     def handle_menu(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_BACKSPACE:
                 self.username = self.username[:-1]
-            elif event.key == pygame.K_RETURN and self.username:
-                self.sound.play("menu", self.settings)
-                self.reset_game()
-                self.state = "game"
-                print(f"Game started for {self.username}.")
+            elif event.key == pygame.K_RETURN:
+                self.start_game()
             elif event.unicode and len(self.username) < 16:
                 self.username += event.unicode
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if Button((180, 260, 160, 42), "Play").clicked(event) and self.username:
-                self.sound.play("menu", self.settings)
-                self.reset_game()
-                self.state = "game"
-                print(f"Game started for {self.username}.")
-            elif Button((180, 315, 160, 42), "Leaderboard").clicked(event):
-                self.sound.play("menu", self.settings)
-                self.state = "leaderboard"
-                print("Opened leaderboard.")
-            elif Button((180, 370, 160, 42), "Settings").clicked(event):
-                self.sound.play("menu", self.settings)
-                self.state = "settings"
-                print("Opened settings.")
-            elif Button((180, 425, 160, 42), "Quit").clicked(event):
-                print("Quit requested from menu.")
-                pygame.event.post(pygame.event.Event(pygame.QUIT))
+            self.menu_click(event)
 
     def handle_settings(self, event):
-        if event.type != pygame.MOUSEBUTTONDOWN:
-            return
-        colors = [[40, 120, 220], [200, 55, 60], [45, 160, 95]]
-        difficulties = ["easy", "normal", "hard"]
-        if Button((300, 225, 160, 42), "Toggle Sound").clicked(event):
-            self.settings["sound"] = not self.settings.get("sound", True)
-            print(f"Sound set to {self.settings['sound']}.")
-        elif Button((300, 280, 160, 42), "Car Color").clicked(event):
-            self.sound.play("menu", self.settings)
-            current = colors.index(self.settings.get("car_color", colors[0])) if self.settings.get("car_color") in colors else 0
-            self.settings["car_color"] = colors[(current + 1) % len(colors)]
-            print(f"Car color changed to {self.settings['car_color']}.")
-        elif Button((300, 335, 160, 42), "Difficulty").clicked(event):
-            self.sound.play("menu", self.settings)
-            current = difficulties.index(self.settings.get("difficulty", "normal"))
-            self.settings["difficulty"] = difficulties[(current + 1) % len(difficulties)]
-            print(f"Difficulty changed to {self.settings['difficulty']}.")
-        elif Button((180, 450, 160, 42), "Save & Back").clicked(event):
-            self.sound.play("menu", self.settings)
-            save_settings(self.settings)
-            self.state = "menu"
-            print("Settings saved.")
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            self.settings_click(event)
 
     def current_speed(self):
         base = DIFFICULTY_SPEED.get(self.settings.get("difficulty", "normal"), 5)
@@ -202,7 +206,6 @@ class RacerApp:
             self.finish_run()
 
     def spawn_entities(self):
-        # New traffic and hazards try not to spawn directly above the player.
         lane = choice([x for x in LANES if abs(x - self.player.rect.centerx) > 45 or random() < 0.35])
         density = min(0.65, 0.2 + self.distance / 5000)
         if random() < density:
@@ -225,7 +228,6 @@ class RacerApp:
                 self.coins.remove(coin)
                 self.coins_collected += coin.value
                 self.sound.play("coin", self.settings)
-                print(f"You collected {coin.value} coin(s). Total coins: {self.coins_collected}.")
         for power in self.powerups[:]:
             if self.player.rect.colliderect(power.rect):
                 self.powerups.remove(power)
@@ -236,7 +238,6 @@ class RacerApp:
                 if self.shield:
                     self.sound.play("collision", self.settings)
                     self.shield = False
-                    print(f"Shield blocked a {hazard.kind}.")
                     if hazard in self.traffic:
                         self.traffic.remove(hazard)
                     elif hazard in self.obstacles:
@@ -246,37 +247,30 @@ class RacerApp:
                     self.sound.play("collision", self.settings)
                     self.player.rect.x += randint(-35, 35)
                     self.player.rect.clamp_ip(ROAD)
-                    print("Penalty: oil spill hit. Your car slipped.")
                 elif hazard.kind == "bump":
                     self.sound.play("collision", self.settings)
                     self.distance = max(0, self.distance - 25)
-                    print("Penalty: speed bump hit. Distance reduced by 25.")
                 else:
                     self.sound.play("collision", self.settings)
-                    print(f"Crash: you hit {hazard.kind}.")
                     self.finish_run()
 
     def apply_power(self, kind):
         self.active_power = kind
         if kind == "nitro":
             self.active_until = pygame.time.get_ticks() + 4000
-            print("Power-up: you received nitro. Speed increased for 4 seconds.")
         elif kind == "shield":
             self.shield = True
             self.active_until = 0
-            print("Power-up: you received shield. Next crash will be blocked.")
         elif kind == "repair":
             if self.obstacles:
                 self.obstacles.pop(0)
             self.active_power = None
-            print("Power-up: you received repair. One obstacle was removed.")
 
     def finish_run(self):
         if not self.game_over_saved:
             add_score(self.username, self.score, self.distance, self.coins_collected)
             self.game_over_saved = True
             self.sound.play("gameover", self.settings)
-            print(f"Run finished. Score: {self.score}, distance: {int(self.distance)}, coins: {self.coins_collected}.")
         self.state = "gameover"
 
     def draw(self):
@@ -295,7 +289,7 @@ class RacerApp:
         self.screen.fill((245, 247, 250))
         draw_text(self.screen, self.big, "TSIS3 Racer", (WIDTH // 2, 120), center=True)
         draw_text(self.screen, self.font, f"Name: {self.username or 'type your name'}", (WIDTH // 2, 190), center=True)
-        for rect, text in [((180, 260, 160, 42), "Play"), ((180, 315, 160, 42), "Leaderboard"), ((180, 370, 160, 42), "Settings"), ((180, 425, 160, 42), "Quit")]:
+        for rect, text, _action in MENU_BUTTONS:
             Button(rect, text).draw(self.screen, self.font)
 
     def draw_game(self):
@@ -318,7 +312,6 @@ class RacerApp:
         draw_text(self.screen, self.font, f"Power {active}", (12, 90), (255, 255, 255))
 
     def draw_entity(self, item):
-        # Sprite first, rectangle fallback second.
         image = self.images.get(item.kind)
         if image:
             self.screen.blit(image, item.rect)
@@ -335,12 +328,10 @@ class RacerApp:
     def draw_settings(self):
         self.screen.fill((245, 247, 250))
         draw_text(self.screen, self.big, "Settings", (WIDTH // 2, 120), center=True)
-        # Values are drawn on the left, buttons on the right.
-        # This keeps the text from visually merging with the buttons.
         draw_text(self.screen, self.font, f"Sound: {self.settings['sound']}", (70, 238))
         draw_text(self.screen, self.font, f"Color: {self.settings['car_color']}", (70, 293))
         draw_text(self.screen, self.font, f"Difficulty: {self.settings['difficulty']}", (70, 348))
-        for rect, text in [((300, 225, 160, 42), "Toggle Sound"), ((300, 280, 160, 42), "Car Color"), ((300, 335, 160, 42), "Difficulty"), ((180, 450, 160, 42), "Save & Back")]:
+        for rect, text, _action in SETTINGS_BUTTONS:
             Button(rect, text).draw(self.screen, self.font)
 
     def draw_gameover(self):

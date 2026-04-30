@@ -29,16 +29,16 @@ POWER_COLORS = {
     "slow": (120, 85, 210),
     "shield": (60, 180, 120),
 }
+MENU_BUTTONS = [(220, 250, "Play"), (220, 305, "Leaderboard"), (220, 360, "Settings"), (220, 415, "Quit")]
+SETTINGS_BUTTONS = [(220, 245, "Color"), (220, 300, "Grid"), (220, 355, "Sound"), (220, 455, "Save & Back")]
 
 
 def load_settings():
-    if not SETTINGS_FILE.exists():
-        save_settings(DEFAULT_SETTINGS)
-        return DEFAULT_SETTINGS.copy()
-
-    data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
     settings = DEFAULT_SETTINGS.copy()
-    settings.update(data)
+    if not SETTINGS_FILE.exists():
+        save_settings(settings)
+    else:
+        settings.update(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
     return settings
 
 
@@ -66,17 +66,18 @@ class SnakeGame:
         self.reset_game()
 
     def load_images(self):
-        return {
-            "snake_head": load_image("snake_head.bmp", (CELL, CELL)),
-            "snake_body": load_image("snake_body.bmp", (CELL, CELL)),
-            "food": load_image("food.bmp", (CELL, CELL)),
-            "poison": load_image("poison.bmp", (CELL, CELL)),
-            "speed": load_image("speed.bmp", (CELL, CELL)),
-            "slow": load_image("slow.bmp", (CELL, CELL)),
-            "shield": load_image("shield.bmp", (CELL, CELL)),
-            "obstacle": load_image("obstacle.bmp", (CELL, CELL)),
-            "ui_panel": load_image("ui_panel.bmp", (WIDTH, TOP_PANEL)),
+        files = {
+            "snake_head": ("snake_head.bmp", (CELL, CELL)),
+            "snake_body": ("snake_body.bmp", (CELL, CELL)),
+            "food": ("food.bmp", (CELL, CELL)),
+            "poison": ("poison.bmp", (CELL, CELL)),
+            "speed": ("speed.bmp", (CELL, CELL)),
+            "slow": ("slow.bmp", (CELL, CELL)),
+            "shield": ("shield.bmp", (CELL, CELL)),
+            "obstacle": ("obstacle.bmp", (CELL, CELL)),
+            "ui_panel": ("ui_panel.bmp", (WIDTH, TOP_PANEL)),
         }
+        return {name: load_image(file, size) for name, (file, size) in files.items()}
 
     def reset_game(self):
         self.snake = [(8, 8), (7, 8), (6, 8)]
@@ -157,29 +158,32 @@ class SnakeGame:
         if event.type != pygame.MOUSEBUTTONDOWN:
             return
 
-        if self.button(220, 250).collidepoint(event.pos) and self.username:
-            self.start_game()
-        elif self.button(220, 305).collidepoint(event.pos):
-            self.open_screen("leaderboard")
-        elif self.button(220, 360).collidepoint(event.pos):
-            self.open_screen("settings")
-        elif self.button(220, 415).collidepoint(event.pos):
-            pygame.event.post(pygame.event.Event(pygame.QUIT))
+        for x, y, text in MENU_BUTTONS:
+            if not self.button(x, y).collidepoint(event.pos):
+                continue
+            if text == "Play" and self.username:
+                self.start_game()
+            elif text == "Leaderboard":
+                self.open_screen("leaderboard")
+            elif text == "Settings":
+                self.open_screen("settings")
+            elif text == "Quit":
+                pygame.event.post(pygame.event.Event(pygame.QUIT))
 
     def handle_game_keys(self, event):
         if event.type != pygame.KEYDOWN:
             return
 
-        keys = {
+        directions = {
             pygame.K_UP: (0, -1),
             pygame.K_DOWN: (0, 1),
             pygame.K_LEFT: (-1, 0),
             pygame.K_RIGHT: (1, 0),
         }
-        if event.key not in keys:
+        if event.key not in directions:
             return
 
-        new_direction = keys[event.key]
+        new_direction = directions[event.key]
         is_opposite = (
             new_direction[0] + self.direction[0] == 0
             and new_direction[1] + self.direction[1] == 0
@@ -192,20 +196,24 @@ class SnakeGame:
             return
 
         colors = [[45, 160, 95], [55, 120, 220], [220, 70, 90]]
+        clicked = None
+        for x, y, text in SETTINGS_BUTTONS:
+            if self.button(x, y).collidepoint(event.pos):
+                clicked = text
 
-        if self.button(220, 245).collidepoint(event.pos):
-            if self.settings["snake_color"] in colors:
-                current = colors.index(self.settings["snake_color"])
-            else:
-                current = 0
+        if clicked is None:
+            return
+
+        if clicked == "Color":
+            current = colors.index(self.settings["snake_color"]) if self.settings["snake_color"] in colors else 0
             self.settings["snake_color"] = colors[(current + 1) % len(colors)]
             self.sound.play("menu", self.settings)
-        elif self.button(220, 300).collidepoint(event.pos):
+        elif clicked == "Grid":
             self.settings["grid"] = not self.settings["grid"]
             self.sound.play("menu", self.settings)
-        elif self.button(220, 355).collidepoint(event.pos):
+        elif clicked == "Sound":
             self.settings["sound"] = not self.settings["sound"]
-        elif self.button(220, 455).collidepoint(event.pos):
+        elif clicked == "Save & Back":
             save_settings(self.settings)
             self.open_screen("menu")
 
@@ -238,13 +246,7 @@ class SnakeGame:
                 return cell
 
     def cell_is_free(self, cell):
-        if cell in self.snake:
-            return False
-        if cell in self.obstacles:
-            return False
-        if cell == self.food_pos or cell == self.poison_pos or cell == self.power_pos:
-            return False
-        return True
+        return cell not in self.snake and cell not in self.obstacles and cell not in {self.food_pos, self.poison_pos, self.power_pos}
 
     def spawn_food(self):
         self.food_pos = self.random_free_cell()
@@ -257,9 +259,7 @@ class SnakeGame:
             self.poison_pos = self.random_free_cell()
 
     def spawn_powerup(self):
-        if self.power_pos is not None:
-            return
-        if random() >= 0.12:
+        if self.power_pos is not None or random() >= 0.12:
             return
 
         self.power_pos = self.random_free_cell()
@@ -327,8 +327,7 @@ class SnakeGame:
 
     def hit_wall_or_body(self, cell):
         x, y = cell
-        outside = x < 0 or x >= GRID_W or y < 0 or y >= GRID_H
-        return outside or cell in self.snake
+        return x < 0 or x >= GRID_W or y < 0 or y >= GRID_H or cell in self.snake
 
     def use_shield(self):
         self.sound.play("collision", self.settings)
@@ -438,10 +437,8 @@ class SnakeGame:
         if not self.db.available:
             self.draw_text(self.font, "DB offline: leaderboard disabled", (WIDTH // 2, 215), center=True, color=(170, 60, 60))
 
-        self.draw_button(220, 250, "Play")
-        self.draw_button(220, 305, "Leaderboard")
-        self.draw_button(220, 360, "Settings")
-        self.draw_button(220, 415, "Quit")
+        for x, y, text in MENU_BUTTONS:
+            self.draw_button(x, y, text)
 
     def draw_game(self):
         self.screen.fill((32, 35, 42))
@@ -521,10 +518,8 @@ class SnakeGame:
         self.draw_text(self.font, f"Grid overlay: {self.settings['grid']}", (205, 270))
         self.draw_text(self.font, f"Sound: {self.settings['sound']}", (205, 325))
 
-        self.draw_button(220, 245, "Color")
-        self.draw_button(220, 300, "Grid")
-        self.draw_button(220, 355, "Sound")
-        self.draw_button(220, 455, "Save & Back")
+        for x, y, text in SETTINGS_BUTTONS:
+            self.draw_button(x, y, text)
 
     def draw_gameover(self):
         self.screen.fill((245, 247, 250))

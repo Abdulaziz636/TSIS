@@ -47,6 +47,11 @@ def draw_shape(surface, tool, start, end, color, width):
     x1, y1 = start
     x2, y2 = end
     rect = pygame.Rect(min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
+    points = {
+        "right_triangle": [(x1, y1), (x1, y2), (x2, y2)],
+        "equilateral_triangle": [(rect.centerx, rect.top), (rect.left, rect.bottom), (rect.right, rect.bottom)],
+        "rhombus": [(rect.centerx, rect.top), (rect.right, rect.centery), (rect.centerx, rect.bottom), (rect.left, rect.centery)],
+    }
 
     if tool == "line":
         pygame.draw.line(surface, color, start, end, width)
@@ -60,12 +65,5 @@ def draw_shape(surface, tool, start, end, color, width):
         square = pygame.Rect(x1, y1, side if x2 >= x1 else -side, side if y2 >= y1 else -side)
         square.normalize()
         pygame.draw.rect(surface, color, square, width)
-    elif tool == "right_triangle":
-        points = [(x1, y1), (x1, y2), (x2, y2)]
-        pygame.draw.polygon(surface, color, points, width)
-    elif tool == "equilateral_triangle":
-        points = [(rect.centerx, rect.top), (rect.left, rect.bottom), (rect.right, rect.bottom)]
-        pygame.draw.polygon(surface, color, points, width)
-    elif tool == "rhombus":
-        points = [(rect.centerx, rect.top), (rect.right, rect.centery), (rect.centerx, rect.bottom), (rect.left, rect.centery)]
-        pygame.draw.polygon(surface, color, points, width)
+    elif tool in points:
+        pygame.draw.polygon(surface, color, points[tool], width)

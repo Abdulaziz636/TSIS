@@ -16,11 +16,11 @@ DEFAULT_SETTINGS = {
 def load_json(path, default):
     if not path.exists():
         save_json(path, default)
-        return default.copy() if isinstance(default, dict) else list(default)
+        return default.copy()
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        return default.copy() if isinstance(default, dict) else list(default)
+        return default.copy()
 
 
 def save_json(path, data):
@@ -44,5 +44,4 @@ def load_leaderboard():
 def add_score(name, score, distance, coins):
     rows = load_leaderboard()
     rows.append({"name": name or "Player", "score": int(score), "distance": int(distance), "coins": int(coins)})
-    rows.sort(key=lambda row: row["score"], reverse=True)
-    save_json(LEADERBOARD_FILE, rows[:10])
+    save_json(LEADERBOARD_FILE, sorted(rows, key=lambda row: row["score"], reverse=True)[:10])

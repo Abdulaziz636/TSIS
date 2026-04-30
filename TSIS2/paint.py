@@ -24,54 +24,35 @@ TOOLS = [
     ("fill", "Fill"),
     ("text", "Text"),
 ]
-SIZES = {1: 2, 2: 5, 3: 10}
+SIZES = {pygame.K_1: 2, pygame.K_2: 5, pygame.K_3: 10}
 
 
 def make_buttons():
-    buttons = []
-    x = 8
-    for name, label in TOOLS:
-        rect = pygame.Rect(x, 10, 76, 28)
-        buttons.append(ToolButton(rect, name, label))
-        x += 82
-    return buttons
-
-
-def draw_toolbar(screen, font, buttons, active_tool, color, brush_size):
-    pygame.draw.rect(screen, (246, 248, 250), (0, 0, WIDTH, 72))
-    for button in buttons:
-        button.draw(screen, font, active=button.name == active_tool)
-
-    for index, swatch in enumerate(PALETTE):
-        rect = pygame.Rect(12 + index * 34, 44, 24, 20)
-        pygame.draw.rect(screen, swatch, rect, border_radius=4)
-        border = (0, 0, 0) if swatch == color else (160, 166, 176)
-        pygame.draw.rect(screen, border, rect, width=2, border_radius=4)
-
-    size_text = font.render(f"Size: {brush_size}px", True, BLACK)
-    screen.blit(size_text, (300, 45))
+    return [ToolButton(pygame.Rect(8 + i * 82, 10, 76, 28), name, label) for i, (name, label) in enumerate(TOOLS)]
 
 
 def save_canvas(canvas):
-    output_dir = BASE_DIR / "saves"
-    output_dir.mkdir(exist_ok=True)
-    filename = output_dir / f"paint_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-    pygame.image.save(canvas, filename)
-    return filename
+    folder = BASE_DIR / "saves"
+    folder.mkdir(exist_ok=True)
+    path = folder / f"paint_{datetime.now():%Y%m%d_%H%M%S}.png"
+    pygame.image.save(canvas, path)
+    return path
 
 
-def print_instructions():
-    print("=== TSIS2 Paint Controls ===")
-    print("Mouse: click a tool, click a color, drag on the canvas to draw.")
-    print("Tools: Pencil, Line, Rect, Circle, Square, Triangles, Rhombus, Eraser, Fill, Text.")
-    print("Keyboard: 1/2/3 - brush size, Ctrl+S - save image.")
-    print("Text tool: click canvas, type text, Enter - place text, Escape - cancel.")
-    print("============================")
+def draw_toolbar(screen, font, buttons, tool, color, size, status):
+    pygame.draw.rect(screen, (246, 248, 250), (0, 0, WIDTH, 72))
+    for button in buttons:
+        button.draw(screen, font, button.name == tool)
+    for i, swatch in enumerate(PALETTE):
+        rect = pygame.Rect(12 + i * 34, 44, 24, 20)
+        pygame.draw.rect(screen, swatch, rect, border_radius=4)
+        pygame.draw.rect(screen, BLACK if swatch == color else (160, 166, 176), rect, 2, border_radius=4)
+    screen.blit(font.render(f"Size: {size}px", True, BLACK), (300, 45))
+    screen.blit(font.render(status, True, BLACK), (410, 45))
 
 
 def main():
     pygame.init()
-    pygame.font.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("TSIS2 Paint")
     font = pygame.font.SysFont("arial", 16)
@@ -82,118 +63,74 @@ def main():
     canvas = pygame.Surface(CANVAS_RECT.size)
     canvas.fill(WHITE)
 
-    active_tool = "pencil"
-    color = BLACK
-    brush_size = SIZES[2]
-    drawing = False
-    start_pos = None
-    last_pos = None
-    text_mode = False
-    text_pos = None
-    text_value = ""
+    tool, color, size = "pencil", BLACK, 5
+    drawing, start, last = False, None, None
+    text_mode, text_pos, text = False, None, ""
     status = ""
 
-    print_instructions()
-
-    running = True
-    while running:
-        mouse_pos = pygame.mouse.get_pos()
-        canvas_mouse = (mouse_pos[0] - CANVAS_RECT.x, mouse_pos[1] - CANVAS_RECT.y)
+    while True:
+        mouse = pygame.mouse.get_pos()
+        canvas_mouse = (mouse[0] - CANVAS_RECT.x, mouse[1] - CANVAS_RECT.y)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                running = False
-                print("Paint closed.")
+                pygame.quit()
+                return
 
-            elif event.type == pygame.KEYDOWN:
-                if event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
-                    brush_size = SIZES[int(event.unicode)]
-                    print(f"Brush size changed to {brush_size}px.")
-                elif event.key == pygame.K_s and (event.mod & pygame.KMOD_CTRL):
-                    saved_file = save_canvas(canvas)
-                    status = f"Saved: {saved_file.name}"
-                    print(f"Canvas saved to {saved_file}.")
+            if event.type == pygame.KEYDOWN:
+                if event.key in SIZES:
+                    size = SIZES[event.key]
+                elif event.key == pygame.K_s and event.mod & pygame.KMOD_CTRL:
+                    status = f"Saved: {save_canvas(canvas).name}"
                 elif text_mode:
                     if event.key == pygame.K_RETURN:
-                        rendered = text_font.render(text_value, True, color)
-                        canvas.blit(rendered, text_pos)
-                        text_mode = False
-                        print(f"Text placed: {text_value}.")
-                        text_value = ""
+                        canvas.blit(text_font.render(text, True, color), text_pos)
+                        text_mode, text = False, ""
                     elif event.key == pygame.K_ESCAPE:
-                        text_mode = False
-                        text_value = ""
-                        print("Text input cancelled.")
+                        text_mode, text = False, ""
                     elif event.key == pygame.K_BACKSPACE:
-                        text_value = text_value[:-1]
+                        text = text[:-1]
                     elif event.unicode:
-                        text_value += event.unicode
+                        text += event.unicode
 
-            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                clicked_toolbar = False
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                clicked = False
                 for button in buttons:
                     if button.rect.collidepoint(event.pos):
-                        active_tool = button.name
-                        clicked_toolbar = True
-                        print(f"Tool selected: {button.label}.")
-                for index, swatch in enumerate(PALETTE):
-                    if pygame.Rect(12 + index * 34, 44, 24, 20).collidepoint(event.pos):
-                        color = swatch
-                        clicked_toolbar = True
-                        print(f"Color selected: RGB{color}.")
-
-                if clicked_toolbar:
+                        tool, clicked = button.name, True
+                for i, swatch in enumerate(PALETTE):
+                    if pygame.Rect(12 + i * 34, 44, 24, 20).collidepoint(event.pos):
+                        color, clicked = swatch, True
+                if clicked or not CANVAS_RECT.collidepoint(event.pos):
                     continue
-                if not CANVAS_RECT.collidepoint(event.pos):
-                    continue
-
-                if active_tool == "fill":
+                if tool == "fill":
                     flood_fill(canvas, canvas_mouse, color)
-                    print(f"Fill applied at {canvas_mouse} with RGB{color}.")
-                elif active_tool == "text":
-                    text_mode = True
-                    text_pos = canvas_mouse
-                    text_value = ""
-                    print(f"Text input started at {text_pos}.")
+                elif tool == "text":
+                    text_mode, text_pos, text = True, canvas_mouse, ""
                 else:
-                    drawing = True
-                    start_pos = canvas_mouse
-                    last_pos = canvas_mouse
-                    print(f"Started {active_tool} at {start_pos}.")
+                    drawing, start, last = True, canvas_mouse, canvas_mouse
 
-            elif event.type == pygame.MOUSEMOTION and drawing:
-                if active_tool in {"pencil", "eraser"} and CANVAS_RECT.collidepoint(event.pos):
-                    draw_color = WHITE if active_tool == "eraser" else color
-                    pygame.draw.line(canvas, draw_color, last_pos, canvas_mouse, brush_size)
-                    last_pos = canvas_mouse
+            if event.type == pygame.MOUSEMOTION and drawing and tool in {"pencil", "eraser"}:
+                draw_color = WHITE if tool == "eraser" else color
+                pygame.draw.line(canvas, draw_color, last, canvas_mouse, size)
+                last = canvas_mouse
 
-            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and drawing:
+            if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and drawing:
                 drawing = False
-                if active_tool not in {"pencil", "eraser"}:
-                    draw_shape(canvas, active_tool, start_pos, canvas_mouse, color, brush_size)
-                    print(f"Drew {active_tool} from {start_pos} to {canvas_mouse}.")
-                else:
-                    print(f"Finished {active_tool} stroke at {canvas_mouse}.")
+                if tool not in {"pencil", "eraser"}:
+                    draw_shape(canvas, tool, start, canvas_mouse, color, size)
 
         screen.fill((222, 226, 232))
         screen.blit(canvas, CANVAS_RECT.topleft)
-
-        if drawing and active_tool not in {"pencil", "eraser"}:
+        if drawing and tool not in {"pencil", "eraser"}:
             preview = canvas.copy()
-            draw_shape(preview, active_tool, start_pos, canvas_mouse, color, brush_size)
+            draw_shape(preview, tool, start, canvas_mouse, color, size)
             screen.blit(preview, CANVAS_RECT.topleft)
-
         if text_mode:
-            rendered = text_font.render(text_value + "|", True, color)
-            screen.blit(rendered, (CANVAS_RECT.x + text_pos[0], CANVAS_RECT.y + text_pos[1]))
-
-        draw_toolbar(screen, font, buttons, active_tool, color, brush_size)
-        if status:
-            screen.blit(font.render(status, True, BLACK), (410, 45))
+            screen.blit(text_font.render(text + "|", True, color), (CANVAS_RECT.x + text_pos[0], CANVAS_RECT.y + text_pos[1]))
+        draw_toolbar(screen, font, buttons, tool, color, size, status)
         pygame.display.flip()
         clock.tick(60)
-
-    pygame.quit()
 
 
 if __name__ == "__main__":
