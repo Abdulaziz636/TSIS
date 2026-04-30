@@ -1,5 +1,6 @@
 import csv
 import json
+import re
 from pathlib import Path
 
 from psycopg2.extras import RealDictCursor
@@ -8,6 +9,8 @@ from connect import BASE_DIR, get_connection, run_sql_file
 
 
 VALID_PHONE_TYPES = {"home", "work", "mobile"}
+PHONE_TYPE_OPTIONS = "home / work / mobile"
+EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.com$")
 
 
 def setup_database():
@@ -29,18 +32,33 @@ def normalize_phone_type(value):
     return phone_type
 
 
+def normalize_email(value):
+    email = (value or "").strip()
+    if not EMAIL_RE.match(email):
+        raise ValueError("Email must look like name@example.com")
+    return email
+
+
+def ask_email(prompt="Email"):
+    while True:
+        try:
+            return normalize_email(ask(prompt))
+        except ValueError as exc:
+            print(exc)
+
+
 def add_contact_interactive():
     name = ask("Name")
     phone = ask("Phone")
-    email = ask("Email", "")
+    email = ask_email()
     birthday = ask("Birthday YYYY-MM-DD", None)
     group = ask("Group", "Other")
-    phone_type = normalize_phone_type(ask("Phone type", "mobile"))
+    phone_type = normalize_phone_type(ask(f"Phone type ({PHONE_TYPE_OPTIONS})", "mobile"))
 
     with get_connection() as conn, conn.cursor() as cur:
         cur.execute(
             "CALL upsert_contact(%s, %s, %s, %s, %s, %s)",
-            (name, phone, email or None, birthday or None, group, phone_type),
+            (name, phone, email, birthday or None, group, phone_type),
         )
     print("Contact saved.")
 
@@ -50,15 +68,21 @@ def import_csv(path):
         reader = csv.DictReader(file)
         with get_connection() as conn, conn.cursor() as cur:
             for row in reader:
+                try:
+                    email = normalize_email(row.get("email"))
+                    phone_type = normalize_phone_type(row.get("phone_type") or row.get("type"))
+                except ValueError as exc:
+                    print(f"Skipped {row.get('name', 'unknown')}: {exc}")
+                    continue
                 cur.execute(
                     "CALL upsert_contact(%s, %s, %s, %s, %s, %s)",
                     (
                         row["name"].strip(),
                         row.get("phone") or None,
-                        row.get("email") or None,
+                        email,
                         row.get("birthday") or None,
                         row.get("group") or "Other",
-                        normalize_phone_type(row.get("phone_type") or row.get("type")),
+                        phone_type,
                     ),
                 )
     print("CSV import finished.")
@@ -94,19 +118,24 @@ def import_json(path):
             cur.execute("SELECT id FROM contacts WHERE name = %s", (name,))
             existing = cur.fetchone()
             if existing:
-                choice = ask(f"Duplicate '{name}'. skip or overwrite", "skip").lower()
+                choice = ask(f"Duplicate '{name}' (skip / overwrite)", "skip").lower()
                 if choice != "overwrite":
                     continue
                 cur.execute("DELETE FROM contacts WHERE id = %s", (existing["id"],))
 
             phones = contact.get("phones") or [{"phone": contact.get("phone"), "type": "mobile"}]
             first_phone = phones[0] if phones else {"phone": None, "type": "mobile"}
+            try:
+                email = normalize_email(contact.get("email"))
+            except ValueError as exc:
+                print(f"Skipped {name}: {exc}")
+                continue
             cur.execute(
                 "CALL upsert_contact(%s, %s, %s, %s, %s, %s)",
                 (
                     name,
                     first_phone.get("phone"),
-                    contact.get("email"),
+                    email,
                     contact.get("birthday"),
                     contact.get("group_name") or contact.get("group") or "Other",
                     normalize_phone_type(first_phone.get("type")),
@@ -130,7 +159,7 @@ def search_contacts():
 def list_filtered_sorted():
     group = ask("Group filter (empty for all)", "")
     email = ask("Email contains (empty for all)", "")
-    sort_key = ask("Sort by name, birthday, created_at", "name")
+    sort_key = ask("Sort by (name / birthday / created_at)", "name")
     allowed_sort = {"name": "c.name", "birthday": "c.birthday", "created_at": "c.created_at"}
     order_by = allowed_sort.get(sort_key, "c.name")
 
@@ -164,7 +193,7 @@ def paginated_navigation():
             rows = cur.fetchall()
         print(f"\nPage starting at {offset}")
         print_rows(rows)
-        command = ask("next / prev / quit", "next").lower()
+        command = ask("Command (next / prev / quit)", "next").lower()
         if command == "next":
             offset += page_size
         elif command == "prev":
@@ -176,14 +205,16 @@ def paginated_navigation():
 def update_contact():
     # Обновление из Practice 7 расширено новыми полями контакта.
     name = ask("Contact name to update")
-    field = ask("Field: name, email, birthday, group, phone", "phone")
-    value = ask("New value")
+    field = ask("Field (name / email / birthday / group / phone)", "phone")
+    value = ask_email("New email") if field == "email" else ask("New value")
     with get_connection() as conn, conn.cursor() as cur:
         if field == "group":
             cur.execute("CALL move_to_group(%s, %s)", (name, value))
         elif field == "phone":
-            cur.execute("CALL add_phone(%s, %s, %s)", (name, value, normalize_phone_type(ask("Type", "mobile"))))
-        elif field in {"name", "email", "birthday"}:
+            cur.execute("CALL add_phone(%s, %s, %s)", (name, value, normalize_phone_type(ask(f"Type ({PHONE_TYPE_OPTIONS})", "mobile"))))
+        elif field == "email":
+            cur.execute("UPDATE contacts SET email = %s WHERE name = %s", (normalize_email(value), name))
+        elif field in {"name", "birthday"}:
             cur.execute(f"UPDATE contacts SET {field} = %s WHERE name = %s", (value, name))
         else:
             print("Unknown field.")
