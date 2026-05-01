@@ -8,10 +8,11 @@ class Button:
 
     def draw(self, screen, font):
         mouse = pygame.mouse.get_pos()
-        bg = (52, 92, 146) if self.rect.collidepoint(mouse) else (232, 236, 240)
-        fg = (255, 255, 255) if self.rect.collidepoint(mouse) else (24, 29, 36)
-        pygame.draw.rect(screen, bg, self.rect, border_radius=6)
-        pygame.draw.rect(screen, (38, 53, 75), self.rect, 1, border_radius=6)
+        bg = (219, 86, 54) if self.rect.collidepoint(mouse) else (255, 246, 232)
+        fg = (255, 255, 255) if self.rect.collidepoint(mouse) else (39, 36, 33)
+        pygame.draw.rect(screen, (43, 39, 36), self.rect.move(3, 3), border_radius=4)
+        pygame.draw.rect(screen, bg, self.rect, border_radius=4)
+        pygame.draw.rect(screen, (95, 72, 55), self.rect, 1, border_radius=4)
         label = font.render(self.text, True, fg)
         screen.blit(label, label.get_rect(center=self.rect.center))
 

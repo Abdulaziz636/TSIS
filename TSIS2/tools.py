@@ -3,7 +3,7 @@ from collections import deque
 import pygame
 
 
-CANVAS_RECT = pygame.Rect(0, 72, 1000, 628)
+CANVAS_RECT = pygame.Rect(0, 0, 880, 614)
 
 
 class ToolButton:
@@ -13,11 +13,15 @@ class ToolButton:
         self.label = label
 
     def draw(self, screen, font, active=False):
-        color = (54, 93, 150) if active else (235, 238, 242)
-        border = (25, 51, 90) if active else (145, 151, 160)
-        pygame.draw.rect(screen, color, self.rect, border_radius=6)
-        pygame.draw.rect(screen, border, self.rect, width=1, border_radius=6)
-        text = font.render(self.label, True, (255, 255, 255) if active else (25, 30, 38))
+        bg = (196, 86, 56) if active else (252, 250, 245)
+        border = (126, 49, 34) if active else (180, 171, 158)
+        text_color = (255, 255, 255) if active else (38, 35, 32)
+
+        shadow = self.rect.move(2, 2)
+        pygame.draw.rect(screen, (205, 199, 190), shadow, border_radius=5)
+        pygame.draw.rect(screen, bg, self.rect, border_radius=5)
+        pygame.draw.rect(screen, border, self.rect, 1, border_radius=5)
+        text = font.render(self.label, True, text_color)
         screen.blit(text, text.get_rect(center=self.rect.center))
 
 
@@ -47,11 +51,6 @@ def draw_shape(surface, tool, start, end, color, width):
     x1, y1 = start
     x2, y2 = end
     rect = pygame.Rect(min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
-    points = {
-        "right_triangle": [(x1, y1), (x1, y2), (x2, y2)],
-        "equilateral_triangle": [(rect.centerx, rect.top), (rect.left, rect.bottom), (rect.right, rect.bottom)],
-        "rhombus": [(rect.centerx, rect.top), (rect.right, rect.centery), (rect.centerx, rect.bottom), (rect.left, rect.centery)],
-    }
 
     if tool == "line":
         pygame.draw.line(surface, color, start, end, width)
@@ -65,5 +64,16 @@ def draw_shape(surface, tool, start, end, color, width):
         square = pygame.Rect(x1, y1, side if x2 >= x1 else -side, side if y2 >= y1 else -side)
         square.normalize()
         pygame.draw.rect(surface, color, square, width)
-    elif tool in points:
-        pygame.draw.polygon(surface, color, points[tool], width)
+    elif tool == "right_triangle":
+        pygame.draw.polygon(surface, color, [(x1, y1), (x1, y2), (x2, y2)], width)
+    elif tool == "equilateral_triangle":
+        points = [(rect.centerx, rect.top), (rect.left, rect.bottom), (rect.right, rect.bottom)]
+        pygame.draw.polygon(surface, color, points, width)
+    elif tool == "rhombus":
+        points = [
+            (rect.centerx, rect.top),
+            (rect.right, rect.centery),
+            (rect.centerx, rect.bottom),
+            (rect.left, rect.centery),
+        ]
+        pygame.draw.polygon(surface, color, points, width)

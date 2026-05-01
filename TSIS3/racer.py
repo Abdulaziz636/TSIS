@@ -13,16 +13,16 @@ LANES = [125, 205, 285, 365]
 FINISH_DISTANCE = 3000
 DIFFICULTY_SPEED = {"easy": 4, "normal": 5, "hard": 7}
 MENU_BUTTONS = [
-    ((180, 260, 160, 42), "Play", "game"),
-    ((180, 315, 160, 42), "Leaderboard", "leaderboard"),
-    ((180, 370, 160, 42), "Settings", "settings"),
-    ((180, 425, 160, 42), "Quit", "quit"),
+    ((45, 285, 180, 42), "Start Run", "game"),
+    ((45, 340, 180, 42), "Hall of Fame", "leaderboard"),
+    ((45, 395, 180, 42), "Garage", "settings"),
+    ((45, 450, 180, 42), "Exit", "quit"),
 ]
 SETTINGS_BUTTONS = [
-    ((300, 225, 160, 42), "Toggle Sound", "sound"),
-    ((300, 280, 160, 42), "Car Color", "color"),
-    ((300, 335, 160, 42), "Difficulty", "difficulty"),
-    ((180, 450, 160, 42), "Save & Back", "save"),
+    ((295, 225, 175, 42), "Toggle Sound", "sound"),
+    ((295, 280, 175, 42), "Paint Color", "color"),
+    ((295, 335, 175, 42), "Difficulty", "difficulty"),
+    ((170, 470, 180, 42), "Save & Back", "save"),
 ]
 
 
@@ -39,7 +39,7 @@ class RacerApp:
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("TSIS3 Racer")
+        pygame.display.set_caption("KBTU Night Racer")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("arial", 22)
         self.big = pygame.font.SysFont("arial", 38)
@@ -286,9 +286,13 @@ class RacerApp:
             self.draw_gameover()
 
     def draw_menu(self):
-        self.screen.fill((245, 247, 250))
-        draw_text(self.screen, self.big, "TSIS3 Racer", (WIDTH // 2, 120), center=True)
-        draw_text(self.screen, self.font, f"Name: {self.username or 'type your name'}", (WIDTH // 2, 190), center=True)
+        self.screen.fill((35, 37, 39))
+        pygame.draw.rect(self.screen, (56, 67, 62), (270, 0, 250, HEIGHT))
+        pygame.draw.rect(self.screen, (78, 78, 76), (330, 0, 92, HEIGHT))
+        for y in range(20, HEIGHT, 86):
+            pygame.draw.rect(self.screen, (232, 202, 92), (372, y, 9, 42))
+        draw_text(self.screen, self.big, "Night Racer", (45, 110), (255, 246, 232))
+        draw_text(self.screen, self.font, f"Driver: {self.username or 'type your name'}", (45, 180), (235, 224, 210))
         for rect, text, _action in MENU_BUTTONS:
             Button(rect, text).draw(self.screen, self.font)
 
@@ -305,11 +309,13 @@ class RacerApp:
                 self.draw_entity(item)
         self.draw_entity(self.player)
         remaining = max(0, FINISH_DISTANCE - int(self.distance))
-        draw_text(self.screen, self.font, f"Score {self.score}", (12, 12), (255, 255, 255))
-        draw_text(self.screen, self.font, f"Coins {self.coins_collected}", (12, 38), (255, 255, 255))
-        draw_text(self.screen, self.font, f"Dist {int(self.distance)} / left {remaining}", (12, 64), (255, 255, 255))
+        pygame.draw.rect(self.screen, (28, 31, 35), (0, 0, 168, 112))
+        pygame.draw.rect(self.screen, (219, 86, 54), (0, 0, 5, 112))
+        draw_text(self.screen, self.font, f"Score {self.score}", (14, 12), (255, 255, 255))
+        draw_text(self.screen, self.font, f"Coins {self.coins_collected}", (14, 38), (255, 255, 255))
+        draw_text(self.screen, self.font, f"Dist {int(self.distance)} / left {remaining}", (14, 64), (255, 255, 255))
         active = "Shield" if self.shield else self.active_power or "None"
-        draw_text(self.screen, self.font, f"Power {active}", (12, 90), (255, 255, 255))
+        draw_text(self.screen, self.font, f"Power {active}", (14, 90), (255, 255, 255))
 
     def draw_entity(self, item):
         image = self.images.get(item.kind)
@@ -319,15 +325,16 @@ class RacerApp:
             pygame.draw.rect(self.screen, item.color, item.rect, border_radius=6)
 
     def draw_leaderboard(self):
-        self.screen.fill((245, 247, 250))
-        draw_text(self.screen, self.big, "Top 10", (WIDTH // 2, 60), center=True)
+        self.screen.fill((255, 246, 232))
+        pygame.draw.rect(self.screen, (35, 37, 39), (0, 0, WIDTH, 86))
+        draw_text(self.screen, self.big, "Hall of Fame", (WIDTH // 2, 44), (255, 246, 232), center=True)
         for index, row in enumerate(load_leaderboard(), 1):
             draw_text(self.screen, self.font, f"{index}. {row['name']}  {row['score']} pts  {row['distance']} m", (70, 105 + index * 38))
         Button((180, 640, 160, 42), "Back").draw(self.screen, self.font)
 
     def draw_settings(self):
-        self.screen.fill((245, 247, 250))
-        draw_text(self.screen, self.big, "Settings", (WIDTH // 2, 120), center=True)
+        self.screen.fill((255, 246, 232))
+        draw_text(self.screen, self.big, "Garage", (WIDTH // 2, 120), center=True)
         draw_text(self.screen, self.font, f"Sound: {self.settings['sound']}", (70, 238))
         draw_text(self.screen, self.font, f"Color: {self.settings['car_color']}", (70, 293))
         draw_text(self.screen, self.font, f"Difficulty: {self.settings['difficulty']}", (70, 348))
@@ -335,10 +342,10 @@ class RacerApp:
             Button(rect, text).draw(self.screen, self.font)
 
     def draw_gameover(self):
-        self.screen.fill((245, 247, 250))
-        draw_text(self.screen, self.big, "Game Over", (WIDTH // 2, 160), center=True)
-        draw_text(self.screen, self.font, f"Score: {self.score}", (WIDTH // 2, 240), center=True)
-        draw_text(self.screen, self.font, f"Distance: {int(self.distance)}", (WIDTH // 2, 275), center=True)
-        draw_text(self.screen, self.font, f"Coins: {self.coins_collected}", (WIDTH // 2, 310), center=True)
+        self.screen.fill((35, 37, 39))
+        draw_text(self.screen, self.big, "Run Finished", (WIDTH // 2, 160), (255, 246, 232), center=True)
+        draw_text(self.screen, self.font, f"Score: {self.score}", (WIDTH // 2, 240), (235, 224, 210), center=True)
+        draw_text(self.screen, self.font, f"Distance: {int(self.distance)}", (WIDTH // 2, 275), (235, 224, 210), center=True)
+        draw_text(self.screen, self.font, f"Coins: {self.coins_collected}", (WIDTH // 2, 310), (235, 224, 210), center=True)
         Button((70, 580, 160, 42), "Retry").draw(self.screen, self.font)
         Button((180, 640, 160, 42), "Back").draw(self.screen, self.font)

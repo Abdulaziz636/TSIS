@@ -1,15 +1,33 @@
 [
   {
+    "name": "xs",
+    "score": 3566,
+    "distance": 2801,
+    "coins": 51
+  },
+  {
     "name": "asdasd",
     "score": 3300,
     "distance": 3000,
     "coins": 20
   },
   {
+    "name": "xs",
+    "score": 3190,
+    "distance": 2275,
+    "coins": 61
+  },
+  {
     "name": "q",
     "score": 3166,
     "distance": 2791,
     "coins": 25
+  },
+  {
+    "name": "xs",
+    "score": 2491,
+    "distance": 1891,
+    "coins": 40
   },
   {
     "name": "as",
@@ -22,6 +40,12 @@
     "score": 1968,
     "distance": 1698,
     "coins": 18
+  },
+  {
+    "name": "xs",
+    "score": 1737,
+    "distance": 1527,
+    "coins": 14
   },
   {
     "name": "s",

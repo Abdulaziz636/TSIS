@@ -29,8 +29,8 @@ POWER_COLORS = {
     "slow": (120, 85, 210),
     "shield": (60, 180, 120),
 }
-MENU_BUTTONS = [(220, 250, "Play"), (220, 305, "Leaderboard"), (220, 360, "Settings"), (220, 415, "Quit")]
-SETTINGS_BUTTONS = [(220, 245, "Color"), (220, 300, "Grid"), (220, 355, "Sound"), (220, 455, "Save & Back")]
+MENU_BUTTONS = [(380, 245, "Play"), (380, 300, "Leaderboard"), (380, 355, "Settings"), (380, 410, "Quit")]
+SETTINGS_BUTTONS = [(360, 245, "Color"), (360, 300, "Grid"), (360, 355, "Sound"), (360, 455, "Save & Back")]
 
 
 def load_settings():
@@ -50,7 +50,7 @@ class SnakeGame:
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("TSIS4 Snake")
+        pygame.display.set_caption("KBTU Snake Lab")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("arial", 22)
         self.big_font = pygame.font.SysFont("arial", 38)
@@ -293,7 +293,7 @@ class SnakeGame:
         new_head = self.next_head()
 
         if self.hit_wall_or_body(new_head) or new_head in self.obstacles:
-            if not self.use_shield():
+            if not self.use_shield(new_head):
                 self.game_over()
                 return
             new_head = self.snake[0]
@@ -329,10 +329,12 @@ class SnakeGame:
         x, y = cell
         return x < 0 or x >= GRID_W or y < 0 or y >= GRID_H or cell in self.snake
 
-    def use_shield(self):
+    def use_shield(self, collision_cell):
         self.sound.play("collision", self.settings)
         if not self.shield:
             return False
+        if collision_cell in self.obstacles:
+            self.obstacles.remove(collision_cell)
         self.shield = False
         self.active_power = None
         return True
@@ -403,11 +405,12 @@ class SnakeGame:
     def draw_button(self, x, y, text):
         rect = self.button(x, y)
         hover = rect.collidepoint(pygame.mouse.get_pos())
-        bg_color = (49, 92, 145) if hover else (232, 236, 240)
-        text_color = (255, 255, 255) if hover else (24, 30, 38)
+        bg_color = (62, 177, 139) if hover else (231, 244, 237)
+        text_color = (16, 35, 29) if hover else (25, 47, 39)
 
-        pygame.draw.rect(self.screen, bg_color, rect, border_radius=6)
-        pygame.draw.rect(self.screen, (38, 53, 75), rect, 1, border_radius=6)
+        pygame.draw.rect(self.screen, (16, 32, 28), rect.move(3, 3), border_radius=4)
+        pygame.draw.rect(self.screen, bg_color, rect, border_radius=4)
+        pygame.draw.rect(self.screen, (50, 94, 77), rect, 1, border_radius=4)
 
         label = self.font.render(text, True, text_color)
         self.screen.blit(label, label.get_rect(center=rect.center))
@@ -430,12 +433,17 @@ class SnakeGame:
             self.draw_gameover()
 
     def draw_menu(self):
-        self.screen.fill((245, 247, 250))
-        self.draw_text(self.big_font, "TSIS4 Snake", (WIDTH // 2, 120), center=True)
-        self.draw_text(self.font, f"Name: {self.username or 'type your name'}", (WIDTH // 2, 185), center=True)
+        self.screen.fill((20, 35, 31))
+        for x in range(0, WIDTH, CELL * 2):
+            pygame.draw.line(self.screen, (31, 53, 47), (x, 0), (x, HEIGHT))
+        for y in range(0, HEIGHT, CELL * 2):
+            pygame.draw.line(self.screen, (31, 53, 47), (0, y), (WIDTH, y))
+        pygame.draw.rect(self.screen, (40, 87, 70), (0, 0, 305, HEIGHT))
+        self.draw_text(self.big_font, "Snake Lab", (42, 105), color=(236, 248, 239))
+        self.draw_text(self.font, f"Player: {self.username or 'type your name'}", (42, 180), color=(205, 229, 214))
 
         if not self.db.available:
-            self.draw_text(self.font, "DB offline: leaderboard disabled", (WIDTH // 2, 215), center=True, color=(170, 60, 60))
+            self.draw_text(self.font, "DB offline: leaderboard disabled", (42, 215), color=(255, 190, 170))
 
         for x, y, text in MENU_BUTTONS:
             self.draw_button(x, y, text)
@@ -478,12 +486,14 @@ class SnakeGame:
                 self.draw_cell(cell, (72, 175, 110), "snake_body")
 
     def draw_score_panel(self):
-        self.draw_text(self.font, f"Score {self.score}  Level {self.level}  Best {self.personal_best}", (10, 14), color=(255, 255, 255))
+        pygame.draw.rect(self.screen, (18, 33, 29), (0, 0, WIDTH, TOP_PANEL))
+        pygame.draw.rect(self.screen, (62, 177, 139), (0, TOP_PANEL - 4, WIDTH, 4))
+        self.draw_text(self.font, f"Score {self.score}  Level {self.level}  Best {self.personal_best}", (14, 14), color=(236, 248, 239))
 
         power = self.active_power or "none"
         if self.shield:
             power = "shield"
-        self.draw_text(self.font, f"Power: {power}", (10, 44), color=(255, 255, 255))
+        self.draw_text(self.font, f"Power: {power}", (14, 44), color=(236, 248, 239))
 
     def draw_cell(self, cell, color, image_name=None):
         x, y = cell
@@ -496,8 +506,9 @@ class SnakeGame:
             pygame.draw.rect(self.screen, color, (rect.x + 1, rect.y + 1, CELL - 2, CELL - 2), border_radius=4)
 
     def draw_leaderboard(self):
-        self.screen.fill((245, 247, 250))
-        self.draw_text(self.big_font, "Leaderboard", (WIDTH // 2, 60), center=True)
+        self.screen.fill((231, 244, 237))
+        pygame.draw.rect(self.screen, (20, 35, 31), (0, 0, WIDTH, 88))
+        self.draw_text(self.big_font, "Leaderboard", (WIDTH // 2, 48), center=True, color=(236, 248, 239))
 
         rows = self.db.top10()
         if not rows:
@@ -511,22 +522,22 @@ class SnakeGame:
         self.draw_button(220, 610, "Back")
 
     def draw_settings(self):
-        self.screen.fill((245, 247, 250))
-        self.draw_text(self.big_font, "Settings", (WIDTH // 2, 120), center=True)
+        self.screen.fill((231, 244, 237))
+        self.draw_text(self.big_font, "Lab Settings", (WIDTH // 2, 120), center=True)
 
-        self.draw_text(self.font, f"Snake color: {self.settings['snake_color']}", (205, 215))
-        self.draw_text(self.font, f"Grid overlay: {self.settings['grid']}", (205, 270))
-        self.draw_text(self.font, f"Sound: {self.settings['sound']}", (205, 325))
+        self.draw_text(self.font, f"Snake color: {self.settings['snake_color']}", (70, 255))
+        self.draw_text(self.font, f"Grid overlay: {self.settings['grid']}", (70, 310))
+        self.draw_text(self.font, f"Sound: {self.settings['sound']}", (70, 365))
 
         for x, y, text in SETTINGS_BUTTONS:
             self.draw_button(x, y, text)
 
     def draw_gameover(self):
-        self.screen.fill((245, 247, 250))
-        self.draw_text(self.big_font, "Game Over", (WIDTH // 2, 170), center=True)
-        self.draw_text(self.font, f"Score: {self.score}", (WIDTH // 2, 250), center=True)
-        self.draw_text(self.font, f"Level reached: {self.level}", (WIDTH // 2, 285), center=True)
-        self.draw_text(self.font, f"Personal best: {max(self.personal_best, self.score)}", (WIDTH // 2, 320), center=True)
+        self.screen.fill((20, 35, 31))
+        self.draw_text(self.big_font, "Game Over", (WIDTH // 2, 170), center=True, color=(236, 248, 239))
+        self.draw_text(self.font, f"Score: {self.score}", (WIDTH // 2, 250), center=True, color=(205, 229, 214))
+        self.draw_text(self.font, f"Level reached: {self.level}", (WIDTH // 2, 285), center=True, color=(205, 229, 214))
+        self.draw_text(self.font, f"Personal best: {max(self.personal_best, self.score)}", (WIDTH // 2, 320), center=True, color=(205, 229, 214))
 
         self.draw_button(90, 610, "Retry")
         self.draw_button(350, 610, "Back")

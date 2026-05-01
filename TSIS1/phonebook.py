@@ -10,31 +10,22 @@ def ask(prompt, default=None):
     return value or default
 
 
-def empty_to_none(value):
-    return value or None
-
-
 def setup_database():
     run_sql_file("schema.sql")
     run_sql_file("procedures.sql")
     print("Database is ready.")
 
 
-def call_upsert(cur, name, number, mail, birth=None, group="Other", kind="mobile"):
-    cur.execute("CALL upsert_contact(%s, %s, %s, %s, %s, %s)", (name, number, mail, birth, group, kind))
-
-
 def upsert(name, number, mail, birth=None, group="Other", kind="mobile"):
     with get_connection() as conn, conn.cursor() as cur:
-        call_upsert(cur, name, number, mail, birth, group, kind)
-
+        cur.execute("CALL upsert_contact(%s, %s, %s, %s, %s, %s)", (name, number, mail, birth, group, kind))
 
 def add_contact_interactive():
     upsert(
         ask("Name"),
         ask("Phone"),
         ask("Email"),
-        empty_to_none(ask("Birthday YYYY-MM-DD", "")),
+        ask("Birthday YYYY-MM-DD", "") or None,
         ask("Group", "Other"),
         ask("Phone type", "mobile"),
     )
@@ -48,7 +39,7 @@ def import_csv(path):
                 row["name"].strip(),
                 row.get("phone"),
                 row.get("email"),
-                empty_to_none(row.get("birthday")),
+                row.get("birthday") or None,
                 row.get("group") or "Other",
                 row.get("phone_type") or row.get("type") or "mobile",
             )
@@ -86,16 +77,20 @@ def import_json(path):
             if old:
                 cur.execute("DELETE FROM contacts WHERE id = %s", (old["id"],))
 
-            phones = contact.get("phones") or [{"phone": contact.get("phone"), "type": "mobile"}]
+            phones = contact.get("phones", [])
+            if not phones:
+                continue
             first = phones[0]
-            call_upsert(
-                cur,
-                name,
-                first.get("phone"),
-                contact.get("email"),
-                empty_to_none(contact.get("birthday")),
-                contact.get("group_name") or contact.get("group") or "Other",
-                first.get("type") or "mobile",
+            cur.execute(
+                "CALL upsert_contact(%s, %s, %s, %s, %s, %s)",
+                (
+                    name,
+                    first.get("phone"),
+                    contact.get("email"),
+                    contact.get("birthday") or None,
+                    contact.get("group_name") or contact.get("group") or "Other",
+                    first.get("type") or "mobile",
+                ),
             )
             for extra in phones[1:]:
                 cur.execute("CALL add_phone(%s, %s, %s)", (name, extra.get("phone"), extra.get("type") or "mobile"))
@@ -167,7 +162,7 @@ def update_contact():
         elif field == "email":
             cur.execute("UPDATE contacts SET email = %s WHERE name = %s", (ask("New email"), name))
         elif field == "birthday":
-            cur.execute("UPDATE contacts SET birthday = %s WHERE name = %s", (empty_to_none(ask("New birthday YYYY-MM-DD", "")), name))
+            cur.execute("UPDATE contacts SET birthday = %s WHERE name = %s", (ask("New birthday YYYY-MM-DD", "") or None, name))
         elif field == "name":
             cur.execute("UPDATE contacts SET name = %s WHERE name = %s", (ask("New name"), name))
         else:
@@ -182,25 +177,64 @@ def delete_contact():
     print("Deleted if found.")
 
 
+MENU_ITEMS = [
+    ("1", "Setup database"),
+    ("2", "Add contact"),
+    ("3", "Import from CSV"),
+    ("4", "Search contacts"),
+    ("5", "List, filter and sort"),
+    ("6", "Browse pages"),
+    ("7", "Update contact"),
+    ("8", "Delete contact"),
+    ("9", "Export to JSON"),
+    ("10", "Import from JSON"),
+    ("0", "Quit"),
+]
+
+
+def print_menu():
+    print("\n" + "=" * 42)
+    print(" KBTU Contact Desk ".center(42, "="))
+    print("=" * 42)
+    for key, title in MENU_ITEMS:
+        print(f"{key:>2}  {title}")
+    print("-" * 42)
+
+
+def print_controls():
+    print("Controls: type a menu number and press Enter. Use 0 to quit.")
+    print("Paths: press Enter on CSV/JSON prompts to use the default sample files.")
+
+
 def menu():
-    actions = {
-        "1": setup_database,
-        "2": add_contact_interactive,
-        "3": lambda: import_csv(ask("CSV path", str(BASE_DIR / "contacts.csv"))),
-        "4": search_contacts,
-        "5": list_filtered_sorted,
-        "6": paginated_navigation,
-        "7": update_contact,
-        "8": delete_contact,
-        "9": lambda: export_json(ask("JSON path", str(BASE_DIR / "contacts.json"))),
-        "10": lambda: import_json(ask("JSON path", str(BASE_DIR / "contacts.json"))),
-    }
+    print_controls()
     while True:
-        print("\n1 setup | 2 add | 3 CSV | 4 search | 5 filter | 6 pages | 7 update | 8 delete | 9 export | 10 import | 0 quit")
-        choice = ask("Choose", "0")
+        print_menu()
+        choice = input("Select action > ").strip()
         if choice == "0":
             break
-        actions.get(choice, lambda: print("Unknown choice."))()
+        elif choice == "1":
+            setup_database()
+        elif choice == "2":
+            add_contact_interactive()
+        elif choice == "3":
+            import_csv(ask("CSV path", str(BASE_DIR / "contacts.csv")))
+        elif choice == "4":
+            search_contacts()
+        elif choice == "5":
+            list_filtered_sorted()
+        elif choice == "6":
+            paginated_navigation()
+        elif choice == "7":
+            update_contact()
+        elif choice == "8":
+            delete_contact()
+        elif choice == "9":
+            export_json(ask("JSON path", str(BASE_DIR / "contacts.json")))
+        elif choice == "10":
+            import_json(ask("JSON path", str(BASE_DIR / "contacts.json")))
+        else:
+            print("Unknown choice.")
 
 
 if __name__ == "__main__":
