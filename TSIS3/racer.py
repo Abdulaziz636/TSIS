@@ -176,7 +176,21 @@ class RacerApp:
             return base + bonus + 4
         return base + bonus
 
+    def update_power_state(self):
+        if self.active_power == "nitro" and pygame.time.get_ticks() >= self.active_until:
+            self.active_power = None
+            self.active_until = 0
+
+    def power_label(self):
+        if self.shield:
+            return "Shield ready"
+        if self.active_power == "nitro":
+            seconds = max(0, (self.active_until - pygame.time.get_ticks()) // 1000 + 1)
+            return f"Nitro {seconds}s"
+        return "None"
+
     def update_game(self):
+        self.update_power_state()
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
             self.player.rect.x -= 6
@@ -217,8 +231,8 @@ class RacerApp:
         if random() < 0.45:
             value = choice([1, 2, 5])
             self.coins.append(Entity(pygame.Rect(choice(LANES) - 10, -30, 20, 20), (235, 190, 55), "coin", value))
-        if random() < 0.12 and not self.powerups and self.active_power is None:
-            kind = choice(["nitro", "shield", "repair"])
+        if random() < 0.18 and not self.powerups and self.active_power is None:
+            kind = choice(["nitro", "shield", "shield", "repair"])
             color = {"nitro": (40, 170, 230), "shield": (100, 95, 220), "repair": (60, 180, 105)}[kind]
             self.powerups.append(Entity(pygame.Rect(choice(LANES) - 13, -35, 26, 26), color, kind, ttl=pygame.time.get_ticks() + 7000))
 
@@ -238,6 +252,7 @@ class RacerApp:
                 if self.shield:
                     self.sound.play("collision", self.settings)
                     self.shield = False
+                    self.active_power = None
                     if hazard in self.traffic:
                         self.traffic.remove(hazard)
                     elif hazard in self.obstacles:
@@ -314,8 +329,7 @@ class RacerApp:
         draw_text(self.screen, self.font, f"Score {self.score}", (14, 12), (255, 255, 255))
         draw_text(self.screen, self.font, f"Coins {self.coins_collected}", (14, 38), (255, 255, 255))
         draw_text(self.screen, self.font, f"Dist {int(self.distance)} / left {remaining}", (14, 64), (255, 255, 255))
-        active = "Shield" if self.shield else self.active_power or "None"
-        draw_text(self.screen, self.font, f"Power {active}", (14, 90), (255, 255, 255))
+        draw_text(self.screen, self.font, f"Power: {self.power_label()}", (14, 90), (255, 255, 255))
 
     def draw_entity(self, item):
         image = self.images.get(item.kind)

@@ -1,5 +1,11 @@
 [
   {
+    "name": "e",
+    "score": 3645,
+    "distance": 3000,
+    "coins": 43
+  },
+  {
     "name": "xs",
     "score": 3566,
     "distance": 2801,
@@ -52,11 +58,5 @@
     "score": 871,
     "distance": 871,
     "coins": 0
-  },
-  {
-    "name": "hello",
-    "score": 549,
-    "distance": 519,
-    "coins": 2
   }
 ]
