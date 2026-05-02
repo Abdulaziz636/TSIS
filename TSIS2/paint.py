@@ -11,15 +11,20 @@ WIDTH, HEIGHT = 1000, 700
 PALETTE_PANEL = pygame.Rect(880, 0, 120, 614)
 TOOLBAR_RECT = pygame.Rect(0, 614, WIDTH, 86)
 WHITE = (255, 255, 255)
-BLACK = (24, 28, 34)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+PURPLE = (128, 0, 128)
 PALETTE = [
-    (30, 33, 36),
-    (196, 86, 56),
-    (48, 103, 145),
-    (54, 138, 112),
-    (235, 177, 66),
-    (132, 91, 165),
-    (238, 238, 232),
+    BLACK,
+    RED,
+    GREEN,
+    BLUE,
+    YELLOW,
+    PURPLE,
+    WHITE,
 ]
 TOOLS = [
     ("pencil", "Pencil"),
