@@ -1,10 +1,10 @@
-CREATE OR REPLACE FUNCTION ensure_group(p_name VARCHAR)
+CREATE OR REPLACE FUNCTION ensure_group(p_group_name VARCHAR)
 RETURNS INTEGER AS $$
 DECLARE
     v_id INTEGER;
 BEGIN
     INSERT INTO groups(name)
-    VALUES (COALESCE(NULLIF(TRIM(p_name), ''), 'Other'))
+    VALUES (COALESCE(NULLIF(TRIM(p_group_name), ''), 'Other'))
     ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
     RETURNING id INTO v_id;
 
@@ -92,13 +92,17 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION IF EXISTS search_contacts(TEXT);
+DROP FUNCTION IF EXISTS get_contacts_page(INTEGER, INTEGER);
+DROP FUNCTION IF EXISTS contact_rows();
+
 CREATE OR REPLACE FUNCTION contact_rows()
 RETURNS TABLE(
     contact_id INTEGER,
-    name VARCHAR,
-    email VARCHAR,
-    birthday VARCHAR,
-    group_name VARCHAR,
+    name VARCHAR(100),
+    email VARCHAR(100),
+    birthday VARCHAR(20),
+    group_name VARCHAR(50),
     phones TEXT,
     created_at TIMESTAMP
 ) AS $$
@@ -117,10 +121,10 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION search_contacts(p_query TEXT)
 RETURNS TABLE(
     contact_id INTEGER,
-    name VARCHAR,
-    email VARCHAR,
-    birthday VARCHAR,
-    group_name VARCHAR,
+    name VARCHAR(100),
+    email VARCHAR(100),
+    birthday VARCHAR(20),
+    group_name VARCHAR(50),
     phones TEXT
 ) AS $$
 BEGIN
@@ -137,16 +141,16 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION get_contacts_page(p_limit INTEGER, p_offset INTEGER)
 RETURNS TABLE(
     contact_id INTEGER,
-    name VARCHAR,
-    email VARCHAR,
-    birthday VARCHAR,
-    group_name VARCHAR,
+    name VARCHAR(100),
+    email VARCHAR(100),
+    birthday VARCHAR(20),
+    group_name VARCHAR(50),
     phones TEXT,
     created_at TIMESTAMP
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT *
+    SELECT r.contact_id, r.name, r.email, r.birthday, r.group_name, r.phones, r.created_at
     FROM contact_rows() r
     ORDER BY r.name
     LIMIT p_limit OFFSET p_offset;
